@@ -3,42 +3,53 @@
 京东抢购口罩程序
 '''
 import requests
-import logging
-import logging.handlers
 import time
 import json
 import sys
 import random
 from bs4 import BeautifulSoup
+from jdlogger import logger
+from message import message
+import traceback
 
 '''
 需要修改
 '''
 # cookie 网页获取
-cookies_String = 'xxxxxx'
+cookies_String = 'xxxxxxx'
+
+# 推送方式 1（mail）或 2（wechat）
+messageType = 1
 
 # 有货通知 收件邮箱
 mail = 'xxxxxx@qq.com'
+
+# 方糖微信推送的key  不知道的请看http://sc.ftqq.com/3.version
+sc_key = ''
+
 # 商品的url
-url = [
-    'https://c0.3.cn/stock?skuId=1336984&area=19_1607_4773_0&venderId=1000078145&buyNum=1&choseSuitSkuIds=&cat=9192,12190,1517&extraParam={%22originid%22:%221%22}&fqsp=0&pdpin=jd_7c3992aa27d1a&pduid=1580535906442142991701&ch=1&callback=jQuery6715489',
-    'https://c0.3.cn/stock?skuId=4642656&area=19_1607_4773_0&venderId=1000006724&buyNum=1&choseSuitSkuIds=&cat=9192,12190,1517&extraParam={%22originid%22:%221%22}&fqsp=0&pdpin=jd_7c3992aa27d1a&pduid=1580535906442142991701&ch=1&callback=jQuery4552086',
-    'https://c0.3.cn/stock?skuId=65466451629&area=19_1607_4773_0&venderId=127922&buyNum=1&choseSuitSkuIds=&cat=9855,9858,9924&extraParam={%22originid%22:%221%22}&fqsp=0&pdpin=jd_7c3992aa27d1a&pduid=1580535906442142991701&ch=1&callback=jQuery2790674',
-    'https://c0.3.cn/stock?skuId=65437208345&area=19_1607_4773_0&venderId=127922&buyNum=1&choseSuitSkuIds=&cat=9855,9858,9924&extraParam={%22originid%22:%221%22}&fqsp=0&pdpin=jd_7c3992aa27d1a&pduid=1580535906442142991701&ch=1&callback=jQuery1749958',
-    'https://c0.3.cn/stock?skuId=7498169&area=19_1607_4773_0&venderId=1000128491&buyNum=1&choseSuitSkuIds=&cat=9855,9858,9924&extraParam={%22originid%22:%221%22}&fqsp=0&pdpin=jd_7c3992aa27d1a&pduid=15631231857651045904648&ch=1&callback=jQuery4102801',
-    'https://c0.3.cn/stock?skuId=7498165&area=19_1607_4773_0&venderId=1000128491&buyNum=1&choseSuitSkuIds=&cat=9855,9858,9924&extraParam={%22originid%22:%221%22}&fqsp=0&pdpin=jd_7c3992aa27d1a&pduid=15631231857651045904648&ch=1&callback=jQuery9614479',
+urls = [
+    # 'https://c0.3.cn/stock?skuId=1336984&area=19_1607_4773_0&venderId=1000078145&buyNum=1&choseSuitSkuIds=&cat=9192,12190,1517&extraParam={%22originid%22:%221%22}&fqsp=0&pdpin=jd_7c3992aa27d1a&pduid=1580535906442142991701&ch=1&callback=jQuery6715489',
+    # 'https://c0.3.cn/stock?skuId=4642656&area=19_1607_4773_0&venderId=1000006724&buyNum=1&choseSuitSkuIds=&cat=9192,12190,1517&extraParam={%22originid%22:%221%22}&fqsp=0&pdpin=jd_7c3992aa27d1a&pduid=1580535906442142991701&ch=1&callback=jQuery4552086',
+    # 'https://c0.3.cn/stock?skuId=65466451629&area=19_1607_4773_0&venderId=127922&buyNum=1&choseSuitSkuIds=&cat=9855,9858,9924&extraParam={%22originid%22:%221%22}&fqsp=0&pdpin=jd_7c3992aa27d1a&pduid=1580535906442142991701&ch=1&callback=jQuery2790674',
+    # 'https://c0.3.cn/stock?skuId=65437208345&area=19_1607_4773_0&venderId=127922&buyNum=1&choseSuitSkuIds=&cat=9855,9858,9924&extraParam={%22originid%22:%221%22}&fqsp=0&pdpin=jd_7c3992aa27d1a&pduid=1580535906442142991701&ch=1&callback=jQuery1749958',
+    # 'https://c0.3.cn/stock?skuId=7498169&area=19_1607_4773_0&venderId=1000128491&buyNum=1&choseSuitSkuIds=&cat=9855,9858,9924&extraParam={%22originid%22:%221%22}&fqsp=0&pdpin=jd_7c3992aa27d1a&pduid=15631231857651045904648&ch=1&callback=jQuery4102801',
+    # 'https://c0.3.cn/stock?skuId=7498165&area=19_1607_4773_0&venderId=1000128491&buyNum=1&choseSuitSkuIds=&cat=9855,9858,9924&extraParam={%22originid%22:%221%22}&fqsp=0&pdpin=jd_7c3992aa27d1a&pduid=15631231857651045904648&ch=1&callback=jQuery9614479',
     'https://c0.3.cn/stock?skuId=7263128&area=19_1607_4773_0&venderId=1000128491&buyNum=1&choseSuitSkuIds=&cat=9855,9858,9924&extraParam={%22originid%22:%221%22}&fqsp=0&pdpin=jd_7c3992aa27d1a&pduid=15631231857651045904648&ch=1&callback=jQuery8872960',
     # 'https://c0.3.cn/stock?skuId=1739089&area=19_1607_4773_0&venderId=1000017287&buyNum=1&choseSuitSkuIds=&cat=15248,15250,15278&extraParam={%22originid%22:%221%22}&fqsp=0&pdpin=jd_7c3992aa27d1a&pduid=1580535906442142991701&ch=1&callback=jQuery4479703'
 ]
+
 '''
 备用
 '''
+
+
 # eid
 eid = ''
 fp = ''
 # 支付密码
 payment_pwd = ''
-
+message = message(messageType=messageType, sc_key=sc_key, mail=mail)
 session = requests.session()
 session.headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/75.0.3770.100 Safari/531.36",
@@ -46,68 +57,6 @@ session.headers = {
     "Connection": "keep-alive"
 }
 manual_cookies = {}
-'''
-日志模块
-'''
-LOG_FILENAME = 'jdBuyMask.log'
-
-logger = logging.getLogger()
-
-
-def set_logger():
-    logger.setLevel(logging.INFO)
-    formatter = logging.Formatter('%(asctime)s %(levelname)s: %(message)s')
-
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(formatter)
-    logger.addHandler(console_handler)
-
-    file_handler = logging.handlers.RotatingFileHandler(
-        LOG_FILENAME, maxBytes=10485760, backupCount=5, encoding="utf-8")
-    file_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
-
-
-set_logger()
-
-'''
-发送邮件模块
-'''
-
-
-def sendMail(url, isOrder):
-    import smtplib
-    from email.mime.text import MIMEText
-    # email 用于构建邮件内容
-    from email.header import Header
-
-    # 用于构建邮件头
-    # 发信方的信息：发信邮箱，QQ 邮箱授权码
-    from_addr = '838143144@qq.com'
-    password = 'alpsneahzhawbfgj'
-
-    # 收信方邮箱
-    to_addr = mail
-    # 发信服务器
-    smtp_server = 'smtp.qq.com'
-    # 邮箱正文内容，第一个参数为内容，第二个参数为格式(plain 为纯文本)，第三个参数为编码
-    if isOrder:
-        msg = MIMEText(url + ' 类型口罩，已经下单了。24小时内付款', 'plain', 'utf-8')
-    else:
-        msg = MIMEText(url + ' 类型口罩，下单失败了，快去抢购！', 'plain', 'utf-8')
-    # 邮件头信息
-    msg['From'] = Header(from_addr)
-    msg['To'] = Header(to_addr)
-    msg['Subject'] = Header('有口罩啦')
-    # 开启发信服务，这里使用的是加密传输
-    server = smtplib.SMTP_SSL(host=smtp_server)
-    server.connect(smtp_server, 465)
-    # 登录发信邮箱
-    server.login(from_addr, password)
-    # 发送邮件
-    server.sendmail(from_addr, to_addr, msg.as_string())
-    # 关闭服务器
-    server.quit()
 
 
 def get_tag_value(tag, key='', index=0):
@@ -226,7 +175,7 @@ def cart_detail():
     for item in soup.find_all(class_='item-item'):
         try:
             sku_id = item['skuid']  # 商品id
-        except Exception as e :
+        except Exception as e:
             logger.info('购物车中有套装商品，跳过')
             continue
         try:
@@ -352,7 +301,9 @@ def get_checkout_page_detail():
     return risk_control
 
 
-def submit_order(risk_control):
+def submit_order(risk_control,sku_id):
+
+
     """提交订单
 
     重要：
@@ -404,43 +355,56 @@ def submit_order(risk_control):
         "Connection": "keep-alive",
         'Host': 'trade.jd.com',
     }
+    for count in range(1, 2):
+        logger.info('第[%s/%s]次尝试提交订单', count, 3)
+        try:
+            resp = session.post(url=url, data=data, headers=headers)
+            resp_json = json.loads(resp.text)
 
-    try:
-        resp = session.post(url=url, data=data, headers=headers)
-        resp_json = json.loads(resp.text)
+            # 返回信息示例：
+            # 下单失败
+            # {'overSea': False, 'orderXml': None, 'cartXml': None, 'noStockSkuIds': '', 'reqInfo': None, 'hasJxj': False, 'addedServiceList': None, 'sign': None, 'pin': 'xxx', 'needCheckCode': False, 'success': False, 'resultCode': 60123, 'orderId': 0, 'submitSkuNum': 0, 'deductMoneyFlag': 0, 'goJumpOrderCenter': False, 'payInfo': None, 'scaleSkuInfoListVO': None, 'purchaseSkuInfoListVO': None, 'noSupportHomeServiceSkuList': None, 'msgMobile': None, 'addressVO': None, 'msgUuid': None, 'message': '请输入支付密码！'}
+            # {'overSea': False, 'cartXml': None, 'noStockSkuIds': '', 'reqInfo': None, 'hasJxj': False, 'addedServiceList': None, 'orderXml': None, 'sign': None, 'pin': 'xxx', 'needCheckCode': False, 'success': False, 'resultCode': 60017, 'orderId': 0, 'submitSkuNum': 0, 'deductMoneyFlag': 0, 'goJumpOrderCenter': False, 'payInfo': None, 'scaleSkuInfoListVO': None, 'purchaseSkuInfoListVO': None, 'noSupportHomeServiceSkuList': None, 'msgMobile': None, 'addressVO': None, 'msgUuid': None, 'message': '您多次提交过快，请稍后再试'}
+            # {'overSea': False, 'orderXml': None, 'cartXml': None, 'noStockSkuIds': '', 'reqInfo': None, 'hasJxj': False, 'addedServiceList': None, 'sign': None, 'pin': 'xxx', 'needCheckCode': False, 'success': False, 'resultCode': 60077, 'orderId': 0, 'submitSkuNum': 0, 'deductMoneyFlag': 0, 'goJumpOrderCenter': False, 'payInfo': None, 'scaleSkuInfoListVO': None, 'purchaseSkuInfoListVO': None, 'noSupportHomeServiceSkuList': None, 'msgMobile': None, 'addressVO': None, 'msgUuid': None, 'message': '获取用户订单信息失败'}
+            # {"cartXml":null,"noStockSkuIds":"xxx","reqInfo":null,"hasJxj":false,"addedServiceList":null,"overSea":false,"orderXml":null,"sign":null,"pin":"xxx","needCheckCode":false,"success":false,"resultCode":600157,"orderId":0,"submitSkuNum":0,"deductMoneyFlag":0,"goJumpOrderCenter":false,"payInfo":null,"scaleSkuInfoListVO":null,"purchaseSkuInfoListVO":null,"noSupportHomeServiceSkuList":null,"msgMobile":null,"addressVO":{"pin":"xxx","areaName":"","provinceId":xx,"cityId":xx,"countyId":xx,"townId":xx,"paymentId":0,"selected":false,"addressDetail":"xx","mobile":"xx","idCard":"","phone":null,"email":null,"selfPickMobile":null,"selfPickPhone":null,"provinceName":null,"cityName":null,"countyName":null,"townName":null,"giftSenderConsigneeName":null,"giftSenderConsigneeMobile":null,"gcLat":0.0,"gcLng":0.0,"coord_type":0,"longitude":0.0,"latitude":0.0,"selfPickOptimize":0,"consigneeId":0,"selectedAddressType":0,"siteType":0,"helpMessage":null,"tipInfo":null,"cabinetAvailable":true,"limitKeyword":0,"specialRemark":null,"siteProvinceId":0,"siteCityId":0,"siteCountyId":0,"siteTownId":0,"skuSupported":false,"addressSupported":0,"isCod":0,"consigneeName":null,"pickVOname":null,"shipmentType":0,"retTag":0,"tagSource":0,"userDefinedTag":null,"newProvinceId":0,"newCityId":0,"newCountyId":0,"newTownId":0,"newProvinceName":null,"newCityName":null,"newCountyName":null,"newTownName":null,"checkLevel":0,"optimizePickID":0,"pickType":0,"dataSign":0,"overseas":0,"areaCode":null,"nameCode":null,"appSelfPickAddress":0,"associatePickId":0,"associateAddressId":0,"appId":null,"encryptText":null,"certNum":null,"used":false,"oldAddress":false,"mapping":false,"addressType":0,"fullAddress":"xxxx","postCode":null,"addressDefault":false,"addressName":null,"selfPickAddressShuntFlag":0,"pickId":0,"pickName":null,"pickVOselected":false,"mapUrl":null,"branchId":0,"canSelected":false,"address":null,"name":"xxx","message":null,"id":0},"msgUuid":null,"message":"xxxxxx商品无货"}
+            # {'orderXml': None, 'overSea': False, 'noStockSkuIds': 'xxx', 'reqInfo': None, 'hasJxj': False, 'addedServiceList': None, 'cartXml': None, 'sign': None, 'pin': 'xxx', 'needCheckCode': False, 'success': False, 'resultCode': 600158, 'orderId': 0, 'submitSkuNum': 0, 'deductMoneyFlag': 0, 'goJumpOrderCenter': False, 'payInfo': None, 'scaleSkuInfoListVO': None, 'purchaseSkuInfoListVO': None, 'noSupportHomeServiceSkuList': None, 'msgMobile': None, 'addressVO': {'oldAddress': False, 'mapping': False, 'pin': 'xxx', 'areaName': '', 'provinceId': xx, 'cityId': xx, 'countyId': xx, 'townId': xx, 'paymentId': 0, 'selected': False, 'addressDetail': 'xxxx', 'mobile': 'xxxx', 'idCard': '', 'phone': None, 'email': None, 'selfPickMobile': None, 'selfPickPhone': None, 'provinceName': None, 'cityName': None, 'countyName': None, 'townName': None, 'giftSenderConsigneeName': None, 'giftSenderConsigneeMobile': None, 'gcLat': 0.0, 'gcLng': 0.0, 'coord_type': 0, 'longitude': 0.0, 'latitude': 0.0, 'selfPickOptimize': 0, 'consigneeId': 0, 'selectedAddressType': 0, 'newCityName': None, 'newCountyName': None, 'newTownName': None, 'checkLevel': 0, 'optimizePickID': 0, 'pickType': 0, 'dataSign': 0, 'overseas': 0, 'areaCode': None, 'nameCode': None, 'appSelfPickAddress': 0, 'associatePickId': 0, 'associateAddressId': 0, 'appId': None, 'encryptText': None, 'certNum': None, 'addressType': 0, 'fullAddress': 'xxxx', 'postCode': None, 'addressDefault': False, 'addressName': None, 'selfPickAddressShuntFlag': 0, 'pickId': 0, 'pickName': None, 'pickVOselected': False, 'mapUrl': None, 'branchId': 0, 'canSelected': False, 'siteType': 0, 'helpMessage': None, 'tipInfo': None, 'cabinetAvailable': True, 'limitKeyword': 0, 'specialRemark': None, 'siteProvinceId': 0, 'siteCityId': 0, 'siteCountyId': 0, 'siteTownId': 0, 'skuSupported': False, 'addressSupported': 0, 'isCod': 0, 'consigneeName': None, 'pickVOname': None, 'shipmentType': 0, 'retTag': 0, 'tagSource': 0, 'userDefinedTag': None, 'newProvinceId': 0, 'newCityId': 0, 'newCountyId': 0, 'newTownId': 0, 'newProvinceName': None, 'used': False, 'address': None, 'name': 'xx', 'message': None, 'id': 0}, 'msgUuid': None, 'message': 'xxxxxx商品无货'}
+            # {"orderXml":null,"cartXml":null,"noStockSkuIds":"","reqInfo":null,"hasJxj":false,"overSea":false,"addedServiceList":null,"sign":null,"pin":null,"needCheckCode":true,"success":false,"resultCode":0,"orderId":0,"submitSkuNum":0,"deductMoneyFlag":0,"goJumpOrderCenter":false,"payInfo":null,"scaleSkuInfoListVO":null,"purchaseSkuInfoListVO":null,"noSupportHomeServiceSkuList":null,"msgMobile":null,"addressVO":null,"msgUuid":null,"message":"验证码不正确，请重新填写"}
+            # 下单成功
+            # {'overSea': False, 'orderXml': None, 'cartXml': None, 'noStockSkuIds': '', 'reqInfo': None, 'hasJxj': False, 'addedServiceList': None, 'sign': None, 'pin': 'xxx', 'needCheckCode': False, 'success': True, 'resultCode': 0, 'orderId': 8740xxxxx, 'submitSkuNum': 1, 'deductMoneyFlag': 0, 'goJumpOrderCenter': False, 'payInfo': None, 'scaleSkuInfoListVO': None, 'purchaseSkuInfoListVO': None, 'noSupportHomeServiceSkuList': None, 'msgMobile': None, 'addressVO': None, 'msgUuid': None, 'message': None}
 
-        # 返回信息示例：
-        # 下单失败
-        # {'overSea': False, 'orderXml': None, 'cartXml': None, 'noStockSkuIds': '', 'reqInfo': None, 'hasJxj': False, 'addedServiceList': None, 'sign': None, 'pin': 'xxx', 'needCheckCode': False, 'success': False, 'resultCode': 60123, 'orderId': 0, 'submitSkuNum': 0, 'deductMoneyFlag': 0, 'goJumpOrderCenter': False, 'payInfo': None, 'scaleSkuInfoListVO': None, 'purchaseSkuInfoListVO': None, 'noSupportHomeServiceSkuList': None, 'msgMobile': None, 'addressVO': None, 'msgUuid': None, 'message': '请输入支付密码！'}
-        # {'overSea': False, 'cartXml': None, 'noStockSkuIds': '', 'reqInfo': None, 'hasJxj': False, 'addedServiceList': None, 'orderXml': None, 'sign': None, 'pin': 'xxx', 'needCheckCode': False, 'success': False, 'resultCode': 60017, 'orderId': 0, 'submitSkuNum': 0, 'deductMoneyFlag': 0, 'goJumpOrderCenter': False, 'payInfo': None, 'scaleSkuInfoListVO': None, 'purchaseSkuInfoListVO': None, 'noSupportHomeServiceSkuList': None, 'msgMobile': None, 'addressVO': None, 'msgUuid': None, 'message': '您多次提交过快，请稍后再试'}
-        # {'overSea': False, 'orderXml': None, 'cartXml': None, 'noStockSkuIds': '', 'reqInfo': None, 'hasJxj': False, 'addedServiceList': None, 'sign': None, 'pin': 'xxx', 'needCheckCode': False, 'success': False, 'resultCode': 60077, 'orderId': 0, 'submitSkuNum': 0, 'deductMoneyFlag': 0, 'goJumpOrderCenter': False, 'payInfo': None, 'scaleSkuInfoListVO': None, 'purchaseSkuInfoListVO': None, 'noSupportHomeServiceSkuList': None, 'msgMobile': None, 'addressVO': None, 'msgUuid': None, 'message': '获取用户订单信息失败'}
-        # {"cartXml":null,"noStockSkuIds":"xxx","reqInfo":null,"hasJxj":false,"addedServiceList":null,"overSea":false,"orderXml":null,"sign":null,"pin":"xxx","needCheckCode":false,"success":false,"resultCode":600157,"orderId":0,"submitSkuNum":0,"deductMoneyFlag":0,"goJumpOrderCenter":false,"payInfo":null,"scaleSkuInfoListVO":null,"purchaseSkuInfoListVO":null,"noSupportHomeServiceSkuList":null,"msgMobile":null,"addressVO":{"pin":"xxx","areaName":"","provinceId":xx,"cityId":xx,"countyId":xx,"townId":xx,"paymentId":0,"selected":false,"addressDetail":"xx","mobile":"xx","idCard":"","phone":null,"email":null,"selfPickMobile":null,"selfPickPhone":null,"provinceName":null,"cityName":null,"countyName":null,"townName":null,"giftSenderConsigneeName":null,"giftSenderConsigneeMobile":null,"gcLat":0.0,"gcLng":0.0,"coord_type":0,"longitude":0.0,"latitude":0.0,"selfPickOptimize":0,"consigneeId":0,"selectedAddressType":0,"siteType":0,"helpMessage":null,"tipInfo":null,"cabinetAvailable":true,"limitKeyword":0,"specialRemark":null,"siteProvinceId":0,"siteCityId":0,"siteCountyId":0,"siteTownId":0,"skuSupported":false,"addressSupported":0,"isCod":0,"consigneeName":null,"pickVOname":null,"shipmentType":0,"retTag":0,"tagSource":0,"userDefinedTag":null,"newProvinceId":0,"newCityId":0,"newCountyId":0,"newTownId":0,"newProvinceName":null,"newCityName":null,"newCountyName":null,"newTownName":null,"checkLevel":0,"optimizePickID":0,"pickType":0,"dataSign":0,"overseas":0,"areaCode":null,"nameCode":null,"appSelfPickAddress":0,"associatePickId":0,"associateAddressId":0,"appId":null,"encryptText":null,"certNum":null,"used":false,"oldAddress":false,"mapping":false,"addressType":0,"fullAddress":"xxxx","postCode":null,"addressDefault":false,"addressName":null,"selfPickAddressShuntFlag":0,"pickId":0,"pickName":null,"pickVOselected":false,"mapUrl":null,"branchId":0,"canSelected":false,"address":null,"name":"xxx","message":null,"id":0},"msgUuid":null,"message":"xxxxxx商品无货"}
-        # {'orderXml': None, 'overSea': False, 'noStockSkuIds': 'xxx', 'reqInfo': None, 'hasJxj': False, 'addedServiceList': None, 'cartXml': None, 'sign': None, 'pin': 'xxx', 'needCheckCode': False, 'success': False, 'resultCode': 600158, 'orderId': 0, 'submitSkuNum': 0, 'deductMoneyFlag': 0, 'goJumpOrderCenter': False, 'payInfo': None, 'scaleSkuInfoListVO': None, 'purchaseSkuInfoListVO': None, 'noSupportHomeServiceSkuList': None, 'msgMobile': None, 'addressVO': {'oldAddress': False, 'mapping': False, 'pin': 'xxx', 'areaName': '', 'provinceId': xx, 'cityId': xx, 'countyId': xx, 'townId': xx, 'paymentId': 0, 'selected': False, 'addressDetail': 'xxxx', 'mobile': 'xxxx', 'idCard': '', 'phone': None, 'email': None, 'selfPickMobile': None, 'selfPickPhone': None, 'provinceName': None, 'cityName': None, 'countyName': None, 'townName': None, 'giftSenderConsigneeName': None, 'giftSenderConsigneeMobile': None, 'gcLat': 0.0, 'gcLng': 0.0, 'coord_type': 0, 'longitude': 0.0, 'latitude': 0.0, 'selfPickOptimize': 0, 'consigneeId': 0, 'selectedAddressType': 0, 'newCityName': None, 'newCountyName': None, 'newTownName': None, 'checkLevel': 0, 'optimizePickID': 0, 'pickType': 0, 'dataSign': 0, 'overseas': 0, 'areaCode': None, 'nameCode': None, 'appSelfPickAddress': 0, 'associatePickId': 0, 'associateAddressId': 0, 'appId': None, 'encryptText': None, 'certNum': None, 'addressType': 0, 'fullAddress': 'xxxx', 'postCode': None, 'addressDefault': False, 'addressName': None, 'selfPickAddressShuntFlag': 0, 'pickId': 0, 'pickName': None, 'pickVOselected': False, 'mapUrl': None, 'branchId': 0, 'canSelected': False, 'siteType': 0, 'helpMessage': None, 'tipInfo': None, 'cabinetAvailable': True, 'limitKeyword': 0, 'specialRemark': None, 'siteProvinceId': 0, 'siteCityId': 0, 'siteCountyId': 0, 'siteTownId': 0, 'skuSupported': False, 'addressSupported': 0, 'isCod': 0, 'consigneeName': None, 'pickVOname': None, 'shipmentType': 0, 'retTag': 0, 'tagSource': 0, 'userDefinedTag': None, 'newProvinceId': 0, 'newCityId': 0, 'newCountyId': 0, 'newTownId': 0, 'newProvinceName': None, 'used': False, 'address': None, 'name': 'xx', 'message': None, 'id': 0}, 'msgUuid': None, 'message': 'xxxxxx商品无货'}
-        # 下单成功
-        # {'overSea': False, 'orderXml': None, 'cartXml': None, 'noStockSkuIds': '', 'reqInfo': None, 'hasJxj': False, 'addedServiceList': None, 'sign': None, 'pin': 'xxx', 'needCheckCode': False, 'success': True, 'resultCode': 0, 'orderId': 8740xxxxx, 'submitSkuNum': 1, 'deductMoneyFlag': 0, 'goJumpOrderCenter': False, 'payInfo': None, 'scaleSkuInfoListVO': None, 'purchaseSkuInfoListVO': None, 'noSupportHomeServiceSkuList': None, 'msgMobile': None, 'addressVO': None, 'msgUuid': None, 'message': None}
+            if resp_json.get('success'):
+                logger.info('订单提交成功! 订单号：%s', resp_json.get('orderId'))
+                return True
+            else:
+                resultMessage, result_code = resp_json.get('message'), resp_json.get('resultCode')
+                if result_code == 0:
+                    # self._save_invoice()
+                    if '验证码不正确'in resultMessage:
+                        resultMessage = resultMessage + '(验证码错误)'
+                    else:
+                        resultMessage = resultMessage + '(下单商品可能为第三方商品，将切换为普通发票进行尝试)'
+                elif result_code == 60077:
+                    resultMessage = resultMessage + '(可能是购物车为空 或 未勾选购物车中商品)'
+                elif result_code == 60123:
+                    resultMessage = resultMessage + '(需要在payment_pwd参数配置支付密码)'
+                for i in urls:
+                    if sku_id in i:
+                        urls.remove(i)
+                logger.info('订单提交失败,避免死循环去除异常id[%s]',sku_id)
+                logger.info('订单提交失败, 错误码：%s, 返回信息：%s', result_code, resultMessage)
+                logger.info(resp_json)
+                return False
+        except Exception as e:
+            print(traceback.format_exc())
+            continue
 
-        if resp_json.get('success'):
-            logger.info('订单提交成功! 订单号：%s', resp_json.get('orderId'))
-            return True
-        else:
-            message, result_code = resp_json.get('message'), resp_json.get('resultCode')
-            if result_code == 0:
-                # self._save_invoice()
-                message = message + '(下单商品可能为第三方商品，将切换为普通发票进行尝试)'
-            elif result_code == 60077:
-                message = message + '(可能是购物车为空 或 未勾选购物车中商品)'
-            elif result_code == 60123:
-                message = message + '(需要在payment_pwd参数配置支付密码)'
-            logger.info('订单提交失败, 错误码：%s, 返回信息：%s', result_code, message)
-            logger.info(resp_json)
-            return False
-    except Exception as e:
-        logger.error(e)
-        return False
+
 '''
 
 '''
-def item_removed( sku_id):
+
+
+def item_removed(sku_id):
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/75.0.3770.100 Safari/531.36",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3",
@@ -452,6 +416,7 @@ def item_removed( sku_id):
     page = requests.get(url=url, headers=headers)
     return '该商品已下柜' not in page.text
 
+
 '''
 购买环节
 测试三次
@@ -459,38 +424,32 @@ def item_removed( sku_id):
 
 
 def buyMask(sku_id):
-    for count in range(1, 3):
-        logger.info('第[%s/%s]次尝试提交订单', count, 3)
-        cancel_select_all_cart_item()
-        cart = cart_detail()
-        if sku_id in cart:
-            logger.info('%s 已在购物车中，调整数量为 %s', sku_id, 1)
-            cart_item = cart.get(sku_id)
-            change_item_num_in_cart(
-                sku_id=sku_id,
-                vender_id=cart_item.get('vender_id'),
-                num=1,
-                p_type=cart_item.get('p_type'),
-                target_id=cart_item.get('target_id'),
-                promo_id=cart_item.get('promo_id')
-            )
-        else:
-            add_item_to_cart(sku_id)
-        risk_control = get_checkout_page_detail()
-        if len(risk_control) > 0:
-            if submit_order(risk_control):
-                return True
-        logger.info('休息%ss', 3)
-        time.sleep(3)
+    cancel_select_all_cart_item()
+    cart = cart_detail()
+    if sku_id in cart:
+        logger.info('%s 已在购物车中，调整数量为 %s', sku_id, 1)
+        cart_item = cart.get(sku_id)
+        change_item_num_in_cart(
+            sku_id=sku_id,
+            vender_id=cart_item.get('vender_id'),
+            num=1,
+            p_type=cart_item.get('p_type'),
+            target_id=cart_item.get('target_id'),
+            promo_id=cart_item.get('promo_id')
+        )
     else:
-        logger.info('执行结束，提交订单失败！')
-        return False
+        add_item_to_cart(sku_id)
+    risk_control = get_checkout_page_detail()
+    if len(risk_control) > 0:
+        if submit_order(risk_control,sku_id):
+            return True
+    return False
 
 
-flag = 0
+flag = 1
 while (1):
     try:
-        if flag == 0:
+        if flag == 1:
             validate_cookies()
             getUsername()
         checkSession = requests.Session()
@@ -501,7 +460,7 @@ while (1):
         }
         logger.info('第' + str(flag) + '次 ')
         flag += 1
-        for i in url:
+        for i in urls:
             # 商品url
             skuId = i.split('skuId=')[1].split('&')[0]
             skuidUrl = 'https://item.jd.com/' + skuId + '.html'
@@ -512,19 +471,18 @@ while (1):
                 if item_removed(skuId):
                     logger.info('[%s]类型口罩有货啦!马上下单', skuId)
                     if buyMask(skuId):
-                        sendMail(skuidUrl, True)
+                        message.send(skuidUrl, False)
                         sys.exit(1)
                     else:
-                        sendMail(skuidUrl, False)
-                    sys.exit(1)
+                        message.send(skuidUrl, False)
                 else:
                     logger.info('[%s]类型口罩有货，但已下柜商品', skuId)
-        time.sleep(5)
+        timesleep = random.randint(3, 8)
+        time.sleep(timesleep)
         if flag % 20 == 0:
             logger.info('校验是否还在登录')
             validate_cookies()
     except Exception as e:
-        import traceback
 
         print(traceback.format_exc())
         time.sleep(10)
